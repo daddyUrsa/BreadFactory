@@ -25,79 +25,74 @@ public struct Bread {
 
 // --------------------------
 
-var noDough: Int = 0
-var prepearedDough: Int = 1
+var array: [Int] = []
+
+let lock = NSConditionLock(condition: 0)
 
 class BakeryStorage{
     private var storage: [Bread] = []
-    
-    var isEmtyStroage: Bool {
+    var doughCount = 0
+    var isEmptyStorage: Bool {
         return storage.isEmpty
     }
-
-    var lock = NSConditionLock(condition: noDough)
+    var workDone = false
     
     func push() {
-        lock.lock(whenCondition: noDough)
         let dough = Bread.make()
+        lock.lock(whenCondition: 0)
         storage.append(dough)
-        print("Put dough in storage")
-        lock.unlock(withCondition: prepearedDough)
+        doughCount += 1
+        lock.unlock(withCondition: 1)
+        print("Кладем заготовку из теста на склад")
     }
     
     func pop() -> Bread? {
-        print("Get dough from storage")
-        lock.lock(whenCondition: prepearedDough)
-        let bread = storage.popLast()
-        print("Get dough from storage")
-        lock.unlock(withCondition: noDough)
-        return bread
+        var coockedBread: Bread?
+        lock.lock(whenCondition: 1)
+        while !bakeryStorage.isEmptyStorage {
+            print("Достаем заготовку со склада")
+            let bread = storage.popLast()
+            coockedBread = bread ?? nil
+        }
+        lock.unlock(withCondition: 0)
+        return coockedBread
     }
-    
 }
 
-class CreatesThread: Thread {
+var bakeryStorage = BakeryStorage()
+
+class FirstThread: Thread {
     var timer = Timer()
+    var i = 1
+
     override func main() {
-        print("prepare for dough")
         timer = Timer.scheduledTimer(withTimeInterval: 2, repeats: true) { timer in
-            bakery.push()
-            print("Месим тесто. Формуем хлеб.")
+            bakeryStorage.push()
+            print("Положили тесто №: \(self.i)")
+            self.i += 1
         }
-        
         RunLoop.current.run(until: Date(timeIntervalSinceNow: 20))
+        print("Тесто закончилось")
+        bakeryStorage.workDone = true
         timer.invalidate()
-        
     }
-    
-    
 }
 
-class WorkingThread: Thread {
-    
-    var storage: BakeryStorage
-    
-    init(storage: BakeryStorage) {
-        self.storage = storage
-    }
-    
+class SecondThread: Thread {
+    var timer = Timer()
+    var i = 1
     override func main() {
-//        bakery.lock.lock(whenCondition: prepearedDough)
-        print("prepare for bake")
-        print(storage.isEmtyStroage)
-        while !storage.isEmtyStroage {
-            let dough = storage.pop()
-            dough?.bake()
-            print("Печём хлеб")
+        while isCancelled {
+            let pop = bakeryStorage.pop()
+            pop?.bake()
+            print("Печем хлеб № \(i)")
+            i += 1
         }
-        
     }
 }
 
-var bakery = BakeryStorage()
+let ft = FirstThread()
+let st = SecondThread()
 
-let ct = CreatesThread()
-let wt = WorkingThread(storage: bakery)
-
-ct.start()
-wt.start()
+ft.start()
+st.start()
