@@ -25,17 +25,13 @@ public struct Bread {
 
 // --------------------------
 
-var array: [Int] = []
-
-let lock = NSConditionLock(condition: 0)
-
 class BakeryStorage{
     private var storage: [Bread] = []
+    private var lock = NSConditionLock(condition: 0)
     var doughCount = 0
     var isEmptyStorage: Bool {
         return storage.isEmpty
     }
-    var workDone = false
     
     func push() {
         let dough = Bread.make()
@@ -49,7 +45,7 @@ class BakeryStorage{
     func pop() -> Bread? {
         var coockedBread: Bread?
         lock.lock(whenCondition: 1)
-        while !bakeryStorage.isEmptyStorage {
+        while !isEmptyStorage {
             print("Достаем заготовку со склада")
             let bread = storage.popLast()
             coockedBread = bread ?? nil
@@ -59,30 +55,39 @@ class BakeryStorage{
     }
 }
 
-var bakeryStorage = BakeryStorage()
 
 class FirstThread: Thread {
+    var bakeryStorage: BakeryStorage
     var timer = Timer()
     var i = 1
 
+    init(bakeryStorage: BakeryStorage) {
+        self.bakeryStorage = bakeryStorage
+    }
+
     override func main() {
         timer = Timer.scheduledTimer(withTimeInterval: 2, repeats: true) { timer in
-            bakeryStorage.push()
+            self.bakeryStorage.push()
             print("Положили тесто №: \(self.i)")
             self.i += 1
         }
         RunLoop.current.run(until: Date(timeIntervalSinceNow: 20))
         print("Тесто закончилось")
-        bakeryStorage.workDone = true
         timer.invalidate()
     }
 }
 
 class SecondThread: Thread {
+    var bakeryStorage: BakeryStorage
     var timer = Timer()
     var i = 1
+
+    init(bakeryStorage: BakeryStorage) {
+        self.bakeryStorage = bakeryStorage
+    }
+
     override func main() {
-        while isCancelled {
+        while !isCancelled {
             let pop = bakeryStorage.pop()
             pop?.bake()
             print("Печем хлеб № \(i)")
@@ -91,8 +96,11 @@ class SecondThread: Thread {
     }
 }
 
-let ft = FirstThread()
-let st = SecondThread()
+let bakeryStorage = BakeryStorage()
+
+let ft = FirstThread(bakeryStorage: bakeryStorage)
+let st = SecondThread(bakeryStorage: bakeryStorage)
 
 ft.start()
 st.start()
+
